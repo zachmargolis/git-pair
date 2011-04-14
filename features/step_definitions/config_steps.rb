@@ -1,3 +1,7 @@
+Given /^I have set my email template to "([^"]*)"$/ do |email_template|
+  git_pair %(--set-email "#{email_template}")
+end
+
 When /^I add the author "([^\"]*)"$/ do |name_and_email|
   git_pair %(--add "#{name_and_email}")
 end
@@ -6,8 +10,13 @@ When /^I remove the name "([^\"]*)"$/ do |name|
   git_pair %(--remove "#{name}")
 end
 
+When /^I switch to "([^"]*)"$/ do |name|
+  output = git_pair name
+end
+
 Then /^`git pair` should display "([^\"]*)" in its author list$/ do |name|
   output = git_pair
+  puts output
   authors = authors_list_from_output(output)
   assert authors.include?(name)
 end
@@ -40,6 +49,11 @@ Then /^`git pair` should display an empty author list$/ do
   output = git_pair
   assert authors_list_from_output(output).empty?
 end
+
+Then /^the email address should be "([^"]*)"$/ do |email|
+  assert_equal email, current_email_from_git_config
+end
+
 
 def authors_list_from_output(output)
   output =~ /Author list: (.*?)\n\s?\n/im

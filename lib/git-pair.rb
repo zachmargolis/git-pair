@@ -31,6 +31,11 @@ module GitPair
       `git config --unset-all git-pair.authors`
     end
 
+    def set_email_template(email)
+      @config_changed = true
+      `git config git-pair.email "#{email}"`
+    end
+
     def config_change_made?
       @config_changed
     end
@@ -44,10 +49,13 @@ module GitPair
         name
       }
 
+      usernames = abbreviations.map { |abbrev|
+        Helpers.username_from_abbreviation(abbrev)
+      }
+
       sorted_names = names.uniq.sort_by { |name| name.split.last }
       `git config user.name "#{sorted_names.join(' + ')}"`
-
-      # TODO: prompt for email if not already known
+      `git config user.email "#{Helpers.email(usernames)}"`
     end
 
     extend self
@@ -56,7 +64,7 @@ module GitPair
 
   module Helpers
     def display_string_for_config
-      "#{C_BOLD}     Author list: #{C_RESET}" + author_names.join("\n                  ")
+      "#{C_BOLD}     Author list: #{C_RESET}" + author_strings.join("\n                  ")
     end
 
     def display_string_for_current_info
@@ -69,6 +77,8 @@ module GitPair
     end
 
     def author_strings_with_new(author_string)
+      name, email_username = parse_author_string(author_string)
+      author_string = "#{name} <#{email_username}>"
       strings = author_strings.push(author_string)
 
       strings.reject! { |str|
@@ -82,9 +92,17 @@ module GitPair
       author_strings.map { |line| parse_author_string(line).first }.sort_by { |name| name.split.last }
     end
 
-    def email(*initials_list)
-      initials_string = initials_list.map { |initials| "+#{initials}" }.join
-      'dev@example.com'.sub("@", "#{initials_string}@")
+    def author_emails
+      author_strings.map { |line| parse_author_string(line).last }.sort
+    end
+
+    def email(usernames_list)
+      usernames_string = usernames_list.map { |username| "+#{username}" }.join
+      email_template.sub("@", "#{usernames_string}@")
+    end
+
+    def email_template
+      `git config --get git-pair.email`.strip
     end
 
     def current_author
@@ -95,26 +113,37 @@ module GitPair
       `git config --get user.email`.strip
     end
 
-    def author_name_from_abbreviation(abbrev)
+    def author_name_and_username_from_abbreviation(abbrev)
+      authors = author_strings.map { |author_string| parse_author_string(author_string) }
+
       # initials
-      author_names.each do |name|
-        return name if abbrev.downcase == name.split.map { |word| word[0].chr }.join.downcase
+      authors.each do |name, username|
+        return [name, username] if abbrev.downcase == name.split.map { |word| word[0].chr }.join.downcase
       end
 
       # start of a name
-      author_names.each do |name|
-        return name if name.gsub(" ", "") =~ /^#{abbrev}/i
+      authors.each do |name, username|
+        return [name, username] if name.gsub(" ", "") =~ /^#{abbrev}/i
       end
 
       # includes the letters in order
-      author_names.detect do |name|
-        name =~ /#{abbrev.split("").join(".*")}/i
+      authors.detect do |name, username|
+        [name, username] if name =~ /#{abbrev.split("").join(".*")}/i
       end
+    end
+
+    def author_name_from_abbreviation(abbrev)
+      author_name_and_username_from_abbreviation(abbrev)[0]
+    end
+
+    def username_from_abbreviation(abbrev)
+      author_name_and_username_from_abbreviation(abbrev)[1]
     end
 
     def parse_author_string(author_string)
       author_string =~ /^(.+)\s+<([^>]+)>$/
-      [$1, $2]
+      # strip out the domain
+      [$1, $2.gsub(/@.*$/, '')]
     end
 
     def abort(error_message, extra = "")

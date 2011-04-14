@@ -21,6 +21,11 @@ module RepositoryHelper
     `GIT_DIR=#{TEST_REPO_DOT_GIT_PATH} && git config --list 2>&1`
   end
 
+  def current_email_from_git_config
+    `GIT_DIR=#{TEST_REPO_DOT_GIT_PATH} && git config --get user.email 2>&1`.strip
+  end
+
+
   def backup_gitconfigs
     FileUtils.mkdir_p CONFIG_BACKUP_PATH
     FileUtils.cp File.expand_path("~/.gitconfig"), "#{CONFIG_BACKUP_PATH}/.gitconfig.backup"
